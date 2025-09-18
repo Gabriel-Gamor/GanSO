@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GanSO - Jogo de Tabuleiro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#121212',
+                        'secondary': '#1E88E5',
+                        'accent': '#03A9F4',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #121212;
+            color: white;
+        }
+
+        .board-cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-weight: bold;
+            position: relative;
+        }
+
+        .player-token {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 2px solid #121212;
+            transform: translate(-50%, -50%);
+            top: 50%;
+            left: 50%;
+            transition: all 0.5s ease-in-out;
+        }
+        
+        .rolling {
+            animation: roll 1s ease-out;
+        }
+
+        @keyframes roll {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(720deg) rotateY(720deg) rotateZ(720deg); }
+        }
+
+        .roll-message {
+            animation: fade-in 0.5s ease-in-out;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .stars .fa-star {
+            color: #ccc;
+        }
+        .stars .text-yellow-400 {
+            color: #FACC15;
+        }
+
+        .modal {
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+        .player-color-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 2px solid #121212;
+            margin-right: 8px;
+        }
+
+    </style>
+</head>
+<body class="bg-primary text-gray-200 min-h-screen flex flex-col items-center p-4">
+    <div id="setup-screen" class="container mx-auto px-4 py-8 max-w-md bg-gray-900 rounded-xl shadow-lg border border-gray-700 text-center">
+        <h1 class="text-4xl font-bold text-accent mb-6">GanSO</h1>
+        <p class="text-lg mb-4">Escolha a quantidade de jogadores:</p>
+        <div class="flex flex-col items-center space-y-4 mb-6">
+            <input type="number" id="player-count-input" value="1" min="1" max="10" class="bg-gray-800 text-white text-center py-2 px-4 rounded-lg w-24">
+            <button id="start-game-btn" class="bg-secondary hover:bg-accent text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform duration-200 transform hover:scale-105">Iniciar Jogo</button>
+        </div>
+    </div>
+    
+    <div id="game-screen" class="container mx-auto px-4 py-8 max-w-4xl bg-gray-900 rounded-xl shadow-lg border border-gray-700 hidden">
+        <header class="text-center mb-6">
+            <h1 class="text-4xl font-bold text-accent mb-2">GanSO</h1>
+            <h2 class="text-xl text-white" id="round-info">Rodada: 1 | Posição: 0 | Vez do Jogador 1</h2>
+        </header>
+
+        <!-- Tabuleiro -->
+        <div id="board" class="grid grid-cols-10 gap-2 mb-6">
+            <!-- Células do tabuleiro serão geradas por JS -->
+        </div>
+
+        <!-- Seção de Status dos Jogadores -->
+        <div id="players-status" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- Painéis de jogadores serão gerados por JS -->
+        </div>
+        
+        <!-- Seção de Ações do Jogo -->
+        <div id="action-section" class="text-center mb-6 flex flex-col items-center space-y-4">
+            <div id="dice-container" class="w-24 h-24 bg-gray-800 rounded-xl flex items-center justify-center text-6xl font-bold text-white shadow-lg transition-transform duration-200 transform">
+                ?
+            </div>
+            <p id="roll-message" class="text-3xl font-bold text-accent roll-message"></p>
+            <div class="flex justify-center items-center space-x-4">
+                <button id="stay-put-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold w-32 h-12 flex items-center justify-center rounded-lg shadow-lg transition-transform duration-200 transform hover:scale-105 active:scale-95">
+                    Ficar Parado
+                </button>
+                <button id="roll-dice-btn" class="bg-secondary hover:bg-accent text-white font-bold w-32 h-12 flex items-center justify-center rounded-lg shadow-lg transition-transform duration-200 transform hover:scale-105 active:scale-95">
+                    Rolar Dado
+                </button>
+            </div>
+        </div>
+        
+        <div id="game-message-container" class="text-center p-4 rounded-lg mb-6 text-gray-300">
+            <p id="game-message" class="text-lg">Processo em Execução.</p>
+        </div>
+
+
+        <!-- Modal de Resposta (escondido por padrão) -->
+        <div id="answerModal" class="fixed inset-0 flex items-center justify-center hidden">
+            <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-700 shadow-xl relative">
+                <h2 id="difficulty-text" class="text-center font-semibold text-lg mb-2"></h2>
+                <p class="text-lg mb-4 text-center" id="action-prompt"></p>
+                <div class="flex justify-center space-x-4">
+                    <button id="correct-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-transform duration-200 transform hover:scale-105">Acertou!</button>
+                    <button id="wrong-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-transform duration-200 transform hover:scale-105">Errou</button>
+                </div>
+                <button id="reroll-dice-btn-modal" class="absolute bottom-2 right-2 bg-purple-600 hover:bg-purple-700 text-white font-bold w-24 h-10 flex items-center justify-center rounded-lg shadow-lg transition-transform duration-200 transform hover:scale-105 active:scale-95 text-sm">
+                    Rejogar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Log do Jogo -->
+        <div class="mt-8">
+            <h3 class="text-lg font-semibold text-secondary mb-2">Log de Eventos</h3>
+            <div id="log" class="bg-gray-800 rounded-lg p-4 h-48 overflow-y-auto text-sm text-gray-400 border border-gray-700">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const gameData = {
+            players: [],
+            currentPlayerIndex: 0,
+            round: 1,
+            lastRoll: 0,
+            boardDifficulty: [],
+            currentResourceCost: { cpu: 0, ram: 0 },
+            questions: {
+                facil: [
+                    "O que significa a sigla SO?", "Cite um exemplo de sistema operacional.", "Qual empresa desenvolve o Windows?", "O Linux é de código aberto ou fechado?", "O que é um arquivo em um sistema operacional?", "O que é um diretório?", "Cite um sistema operacional de smartphone.", "Qual tecla no Windows abre o Gerenciador de Tarefas junto com Ctrl+Alt?", "O que é memória RAM usada pelo SO?", "O que acontece quando ligamos o computador?", "O que significa a sigla CPU?", "O que é um processo?", "No Linux, o diretório raiz é representado por qual símbolo?", "Cite um exemplo de chamada de sistema.", "Qual sistema operacional vem nos celulares da Apple?", "O que significa a sigla I/O?", "O que é um driver no SO?", "Qual comando é usado no Windows para listar arquivos em um diretório?", "Qual comando é usado no Linux para listar arquivos?", "O que é um kernel?", "Cite uma operação básica que pode ser feita em um arquivo.", "Qual a função de um antivírus em relação ao SO?", "O que é um backup?", "Cite um exemplo de sistema de arquivos.", "O que significa login em um sistema operacional?"
+                ],
+                medio: [
+                    "Qual a diferença entre hardware e software?", "O que significa que um SO é multitarefa?", "Qual a função principal do sistema de arquivos?", "O que significa a sigla PCB (Process Control Block)?", "Cite dois exemplos de sistemas de arquivos.", "Qual a diferença entre memória volátil e não volátil?", "O que é um dispositivo de entrada? Cite um exemplo.", "O que é um dispositivo de saída? Cite um exemplo.", "O que é uma interrupção em SO?", "O que é login e senha em um sistema?", "O que significa read, write, execute (rwx) em arquivos?", "No Linux, o que é um soft link?", "No Linux, o que é um hard link?", "O que é fragmentação em um disco?", "Cite duas funções da cache de disco.", "Qual a função do MBR (Master Boot Record)?", "O que é um quantum no escalonamento Round Robin?", "Qual a diferença entre FIFO e SJF?", "O que é um deadlock?", "O que é o dispatcher em um sistema operacional?", "Cite três operações básicas em arquivos.", "O que é memória virtual?", "Cite um método de alocação de arquivos no disco.", "O que significa o conceito de partição em discos?", "O que é multithreading?"
+                ],
+                dificil: [
+                    "Explique a diferença entre processo e programa.", "Diferencie kernel monolítico e microkernel.", "Explique como funciona a memória virtual com paginação.", "O que é thrashing em memória virtual?", "Descreva como funciona o algoritmo de substituição de páginas LRU.", "O que significa context switch e por que ele é custoso?", "Diferencie escalonamento preemptivo e não preemptivo.", "Quais são os três níveis de escalonamento (longo, médio, curto)?", "Qual a diferença entre prioridade estática e dinâmica em escalonamento?", "Como funciona o Round Robin e qual seu problema principal?", "Explique o problema de starvation.", "Como o aging resolve o problema de starvation?", "Explique como funciona a alocação contígua de arquivos no disco.", "Explique como funciona a alocação encadeada de arquivos no disco.", "Explique como funciona a alocação indexada de arquivos no disco.", "O que é o VFS (Virtual File System)?", "Qual a função das tabelas TDAA e TAAP em arquivos abertos?", "Diferencie os métodos de acesso a arquivos sequencial e relativo.", "O que é um descritor de arquivo?", "Diferencie um sistema batch de um sistema time-sharing.", "O que são as condições de Coffman para deadlock?", "Explique o papel do dispatcher no chaveamento de contexto.", "Quais são os principais objetivos do escalonamento de processos?", "Explique a diferença entre multithreading em nível de usuário e em nível de kernel."
+                ]
+            },
+            discardPiles: {
+                facil: [],
+                medio: [],
+                dificil: []
+            },
+            playerColors: ["bg-red-500", "bg-blue-500", "bg-green-500", "bg-yellow-500", "bg-purple-500", "bg-pink-500", "bg-indigo-500", "bg-teal-500", "bg-orange-500", "bg-cyan-500"]
+        };
+        
+        const rollDiceBtn = document.getElementById('roll-dice-btn');
+        const stayPutBtn = document.getElementById('stay-put-btn');
+        const diceContainer = document.getElementById('dice-container');
+        const rollMessageEl = document.getElementById('roll-message');
+        const answerModal = document.getElementById('answerModal');
+        const difficultyTextEl = document.getElementById('difficulty-text');
+        const actionPromptEl = document.getElementById('action-prompt');
+        const correctBtn = document.getElementById('correct-btn');
+        const wrongBtn = document.getElementById('wrong-btn');
+        const logEl = document.getElementById('log');
+        const gameMessageEl = document.getElementById('game-message');
+        const roundInfoEl = document.getElementById('round-info');
+        const boardEl = document.getElementById('board');
+        const playersStatusEl = document.getElementById('players-status');
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playerCountInput = document.getElementById('player-count-input');
+        
+        const rerollDiceModalBtn = document.getElementById('reroll-dice-btn-modal');
+        
+        function addLog(message, color = 'text-gray-400') {
+            const entry = document.createElement('p');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            entry.className = `mt-1 ${color}`;
+            logEl.prepend(entry);
+            if (logEl.childElementCount > 20) {
+                logEl.removeChild(logEl.lastChild);
+            }
+        }
+        
+        function getDifficultyColor(difficulty) {
+            switch (difficulty) {
+                case 'facil': return 'bg-green-600';
+                case 'medio': return 'bg-yellow-600';
+                case 'dificil': return 'bg-red-600';
+                default: return 'bg-gray-600';
+            }
+        }
+
+        function createBoard() {
+            boardEl.innerHTML = '';
+            gameData.boardDifficulty = [];
+            for (let i = 1; i <= 30; i++) {
+                let randomDifficulty;
+                if (i === 30) {
+                    randomDifficulty = 'final';
+                } else {
+                    const difficulties = ['facil', 'medio', 'dificil'];
+                    randomDifficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
+                }
+                gameData.boardDifficulty[i] = randomDifficulty;
+
+                const cell = document.createElement('div');
+                cell.id = `cell-${i}`;
+                let cellColor = getDifficultyColor(randomDifficulty);
+                if (i === 30) {
+                    cellColor = 'bg-blue-500';
+                }
+                cell.className = `board-cell text-white ${cellColor}`;
+                cell.innerHTML = `<span>${i}</span>`;
+                boardEl.appendChild(cell);
+            }
+        }
+
+        function createPlayerStatus() {
+            playersStatusEl.innerHTML = '';
+            gameData.players.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `bg-gray-800 rounded-lg p-2 mb-2 border border-gray-700`;
+                playerDiv.innerHTML = `
+                    <div class="flex items-center mb-2">
+                        <div class="player-color-indicator ${player.color} mr-2"></div>
+                        <span class="font-bold text-sm sm:text-base">${player.name}</span>
+                        <span class="ml-auto text-xs sm:text-sm" id="pos-${player.id}">Posição: ${player.position}/30</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <div class="flex-1">
+                            <span class="text-xs sm:text-sm">CPU:</span>
+                            <div class="w-full h-2 bg-gray-700 rounded-full">
+                                <div id="cpu-bar-${player.id}" class="h-2 bg-green-500 rounded-full transition-all duration-500" style="width: ${player.cpu}%;"></div>
+                            </div>
+                            <span id="cpu-text-${player.id}" class="text-xs ml-2">${player.cpu}%</span>
+                        </div>
+                        <div class="flex-1">
+                            <span class="text-xs sm:text-sm">RAM:</span>
+                            <div class="w-full h-2 bg-gray-700 rounded-full">
+                                <div id="ram-bar-${player.id}" class="h-2 bg-green-500 rounded-full transition-all duration-500" style="width: ${player.ram}%;"></div>
+                            </div>
+                            <span id="ram-text-${player.id}" class="text-xs ml-2">${player.ram}%</span>
+                        </div>
+                    </div>
+                `;
+                playersStatusEl.appendChild(playerDiv);
+            });
+        }
+        
+        function updatePlayerPosition() {
+            const playersOnBoard = document.querySelectorAll('.player-token');
+            playersOnBoard.forEach(token => token.remove());
+
+            gameData.players.forEach(player => {
+                const cell = document.getElementById(`cell-${player.position}`);
+                if (cell) {
+                    const token = document.createElement('div');
+                    token.className = `player-token ${player.color}`;
+                    token.id = `player-${player.id}-token`;
+                    cell.appendChild(token);
+                }
+            });
+        }
+
+        function freeOldResources(player) {
+            const resourcesToFree = player.resourceQueue.filter(resource => gameData.round - resource.round >= 5);
+            
+            if (resourcesToFree.length > 0) {
+                const cpuLib = resourcesToFree.reduce((sum, res) => sum + res.cpu, 0);
+                const ramLib = resourcesToFree.reduce((sum, res) => sum + res.ram, 0);
+                addLog(`Recursos da rodada ${gameData.round - 5} liberados: ${Math.round(cpuLib)}% CPU e ${Math.round(ramLib)}% RAM.`, 'text-lime-400');
+            }
+            
+            player.resourceQueue = player.resourceQueue.filter(resource => gameData.round - resource.round < 5);
+        }
+
+        function updatePlayerUI() {
+            gameData.players.forEach(player => {
+                const cpuBar = document.getElementById(`cpu-bar-${player.id}`);
+                const ramBar = document.getElementById(`ram-bar-${player.id}`);
+                const cpuText = document.getElementById(`cpu-text-${player.id}`);
+                const ramText = document.getElementById(`ram-text-${player.id}`);
+                const posText = document.getElementById(`pos-${player.id}`);
+                
+                player.cpu = Math.max(0, Math.round(player.resourceQueue.reduce((sum, res) => sum + res.cpu, 0)));
+                player.ram = Math.max(0, Math.round(player.resourceQueue.reduce((sum, res) => sum + res.ram, 0)));
+
+                if (player.cpu > 100) player.cpu = 100;
+                if (player.ram > 100) player.ram = 100;
+                
+                if (cpuBar) cpuBar.style.width = `${player.cpu}%`;
+                if (ramBar) ramBar.style.width = `${player.ram}%`;
+                if (cpuText) cpuText.textContent = `${player.cpu}%`;
+                if (ramText) ramText.textContent = `${player.ram}%`;
+                if (posText) posText.textContent = `Posição: ${player.position}/30`;
+
+                if (cpuBar) {
+                    if (player.cpu >= 70) cpuBar.classList.replace('bg-green-500', 'bg-red-500');
+                    else cpuBar.classList.replace('bg-red-500', 'bg-green-500');
+                }
+
+                if (ramBar) {
+                    if (player.ram >= 70) ramBar.classList.replace('bg-green-500', 'bg-red-500');
+                    else ramBar.classList.replace('bg-red-500', 'bg-green-500');
+                }
+            });
+
+            const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+            if (roundInfoEl) roundInfoEl.textContent = `Rodada: ${gameData.round} | Posição: ${currentPlayer.position} | Vez do ${currentPlayer.name}`;
+            
+            const isAnsweringQuestion = answerModal && !answerModal.classList.contains('hidden');
+            
+            if (rollDiceBtn) rollDiceBtn.disabled = isAnsweringQuestion;
+            if (stayPutBtn) stayPutBtn.disabled = isAnsweringQuestion;
+
+            if (gameMessageEl) {
+                if (currentPlayer.cpu >= 100 || currentPlayer.ram >= 100) {
+                    if (rollDiceBtn) rollDiceBtn.disabled = true;
+                    if (stayPutBtn) stayPutBtn.disabled = false;
+                    let resource = '';
+                    if (currentPlayer.cpu >= 100 && currentPlayer.ram >= 100) {
+                        resource = 'CPU e RAM';
+                    } else if (currentPlayer.cpu >= 100) {
+                        resource = 'CPU';
+                    } else {
+                        resource = 'RAM';
+                    }
+                    gameMessageEl.textContent = `${resource} no limite! Próximo consumo pode causar um deadlock.`;
+                } else if (currentPlayer.cpu > 100 || currentPlayer.ram > 100) {
+                    if (rollDiceBtn) rollDiceBtn.disabled = true;
+                    if (stayPutBtn) stayPutBtn.disabled = false;
+                    gameMessageEl.textContent = 'Recursos esgotados! Processo bloqueado. Use "Ficar Parado" para liberar recursos.';
+                } else if (!isAnsweringQuestion) {
+                    gameMessageEl.textContent = 'Sua vez de jogar. Escolha uma ação!';
+                }
+            }
+        }
+        
+        const rollDice = () => {
+            const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+            if (currentPlayer.blocked || currentPlayer.cpu >= 100 || currentPlayer.ram >= 100) {
+                if (gameMessageEl) gameMessageEl.textContent = `Você está bloqueado ou no limite! Libere recursos para continuar.`;
+                addLog('Tentativa de jogada falhou. Processo bloqueado.');
+                updatePlayerUI();
+                return;
+            }
+
+            if (diceContainer) {
+                diceContainer.textContent = '?';
+                diceContainer.classList.add('rolling');
+            }
+            
+            setTimeout(() => {
+                const roll = Math.floor(Math.random() * 6) + 1;
+                if (diceContainer) {
+                    diceContainer.classList.remove('rolling');
+                    diceContainer.textContent = roll;
+                }
+                if (rollMessageEl) rollMessageEl.textContent = `Resultado do dado: ${roll}`;
+                gameData.lastRoll = roll;
+                addLog(`${currentPlayer.name} rolou o dado. Resultado: ${roll}`);
+                
+                processTurn(roll);
+
+            }, 1000);
+        };
+        
+        const processTurn = (roll) => {
+            const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+            const nextPosition = currentPlayer.position + roll;
+            
+            if (nextPosition >= 30) {
+                currentPlayer.position = 30;
+                updatePlayerPosition();
+                addLog(`Parabéns, ${currentPlayer.name}! Você finalizou o processo e venceu a corrida!`, 'text-blue-400');
+                if (gameMessageEl) gameMessageEl.textContent = `Fim de jogo! ${currentPlayer.name} venceu!`;
+                rollDiceBtn.disabled = true;
+                stayPutBtn.disabled = true;
+                return;
+            }
+
+            const difficulty = gameData.boardDifficulty[nextPosition];
+            
+            const question = drawQuestion(difficulty);
+            
+            if (difficultyTextEl) difficultyTextEl.textContent = `Pergunta (${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}):`;
+            if (actionPromptEl) actionPromptEl.textContent = question;
+            if (answerModal) answerModal.classList.remove('hidden');
+
+            correctBtn.disabled = false;
+            wrongBtn.disabled = false;
+            rerollDiceModalBtn.disabled = false;
+            
+            currentPlayer.currentDifficulty = difficulty;
+            
+            addLog(`${currentPlayer.name} puxou uma carta de dificuldade: ${difficulty}.`);
+            updatePlayerUI();
+        };
+
+        const drawQuestion = (difficulty) => {
+            let pile = gameData.questions[difficulty];
+            let discardPile = gameData.discardPiles[difficulty];
+
+            if (pile.length === 0) {
+                addLog('Pilha de perguntas vazia! Reabastecendo e embaralhando.');
+                gameData.questions[difficulty] = discardPile.sort(() => Math.random() - 0.5);
+                gameData.discardPiles[difficulty] = [];
+                pile = gameData.questions[difficulty];
+            }
+
+            if (pile.length > 0) {
+                const randomIndex = Math.floor(Math.random() * pile.length);
+                const question = pile.splice(randomIndex, 1)[0];
+                discardPile.push(question);
+                return question;
+            }
+            return "Nenhuma pergunta disponível.";
+        };
+
+        const handleAnswer = (isCorrect) => {
+            const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+            const { cpu, ram } = getResourceCosts(currentPlayer.currentDifficulty);
+            
+            if (currentPlayer.cpu + cpu > 100 || currentPlayer.ram + ram > 100) {
+                 addLog('Falta de recursos!', 'text-red-400');
+                 currentPlayer.blocked = true;
+                 if (answerModal) answerModal.classList.add('hidden');
+                 
+                 gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                 gameData.round++;
+                 addLog(`Nova rodada iniciada: ${gameData.round}`, 'text-blue-400');
+                 gameData.players.forEach(p => freeOldResources(p));
+                 updatePlayerUI();
+                 return;
+            }
+            
+            currentPlayer.resourceQueue.push({ round: gameData.round, cpu, ram });
+            addLog(`Consumo de recursos: +${cpu}% CPU e +${ram}% RAM.`);
+
+            if (isCorrect) {
+                currentPlayer.position += gameData.lastRoll;
+                addLog(`${currentPlayer.name} acertou a pergunta! Avançou ${gameData.lastRoll} casas.`, 'text-green-400');
+            } else {
+                currentPlayer.position = Math.max(0, currentPlayer.position - 1);
+                addLog(`${currentPlayer.name} errou a pergunta! Voltou 1 casa (rollback).`, 'text-red-400');
+            }
+            
+            currentPlayer.position = Math.min(currentPlayer.position, 30);
+            updatePlayerPosition();
+
+            if (currentPlayer.position >= 30) {
+                addLog(`Parabéns, ${currentPlayer.name}! Você finalizou o processo e venceu a corrida!`, 'text-blue-400');
+                if (gameMessageEl) gameMessageEl.textContent = `Fim de jogo! ${currentPlayer.name} venceu!`;
+                rollDiceBtn.disabled = true;
+                stayPutBtn.disabled = true;
+            } else {
+                gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                gameData.round++;
+                addLog(`Nova rodada iniciada: ${gameData.round}`, 'text-blue-400');
+                
+                gameData.players.forEach(p => freeOldResources(p));
+            }
+            
+            if (answerModal) answerModal.classList.add('hidden');
+            updatePlayerUI();
+        };
+
+        const handleStayPut = () => {
+            const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+            const cpuFreed = Math.round(Math.min(currentPlayer.cpu, 20));
+            const ramFreed = Math.round(Math.min(currentPlayer.ram, 30));
+            
+            if (cpuFreed > 0 || ramFreed > 0) {
+                addLog(`${currentPlayer.name} ficou parado! Liberou recursos: -${cpuFreed}% CPU e -${ramFreed}% RAM.`, 'text-blue-400');
+                currentPlayer.resourceQueue.push({ round: gameData.round, cpu: -cpuFreed, ram: -ramFreed });
+            } else {
+                addLog(`${currentPlayer.name} tentou ficar parado, mas não havia recursos para liberar.`, 'text-yellow-400');
+            }
+            
+            gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+            gameData.round++;
+            addLog(`Nova rodada iniciada: ${gameData.round}`, 'text-blue-400');
+            
+            gameData.players.forEach(p => freeOldResources(p));
+            updatePlayerUI();
+        };
+
+        const handleRerollDice = () => {
+            const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+            const cpuCost = 30;
+            const newCpu = currentPlayer.cpu + cpuCost;
+
+            if (newCpu > 100) {
+                const cpuToAdd = Math.round(Math.min(cpuCost, 100 - currentPlayer.cpu));
+                addLog(`Falta de recursos! O rejogar custa ${cpuCost}% CPU, mas só há ${cpuToAdd}% disponíveis.`);
+                currentPlayer.resourceQueue.push({ round: gameData.round, cpu: cpuToAdd, ram: 0 });
+                
+                gameData.currentPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+                gameData.round++;
+                addLog(`Nova rodada iniciada: ${gameData.round}`, 'text-blue-400');
+                
+                gameData.players.forEach(p => freeOldResources(p));
+                updatePlayerUI();
+                
+                if (answerModal) answerModal.classList.add('hidden');
+                return;
+            }
+            
+            currentPlayer.resourceQueue.push({ round: gameData.round, cpu: cpuCost, ram: 0 });
+            addLog(`${currentPlayer.name} rejogou o dado. Custo: +${cpuCost}% CPU.`, 'text-purple-400');
+            
+            if (answerModal) answerModal.classList.add('hidden');
+            
+            updatePlayerUI();
+            rollDice();
+        };
+
+        const getResourceCosts = (difficulty) => {
+            switch (difficulty) {
+                case 'facil': return { cpu: 30, ram: 20 };
+                case 'medio': return { cpu: 25, ram: 25 };
+                case 'dificil': return { cpu: 20, ram: 30 };
+                default: return { cpu: 0, ram: 0 };
+            }
+        };
+
+        const initGame = (playerCount) => {
+            gameData.players = [];
+            for (let i = 0; i < playerCount; i++) {
+                gameData.players.push({
+                    id: i + 1,
+                    name: `Jogador ${i + 1}`,
+                    color: gameData.playerColors[i % gameData.playerColors.length],
+                    position: 0,
+                    cpu: 0,
+                    ram: 0,
+                    blocked: false,
+                    resourceQueue: []
+                });
+            }
+            if (setupScreen) setupScreen.classList.add('hidden');
+            if (gameScreen) gameScreen.classList.remove('hidden');
+            
+            createBoard();
+            createPlayerStatus();
+            updatePlayerPosition();
+            updatePlayerUI();
+            addLog('Início do jogo! Processos prontos para executar.');
+        };
+
+        if (startGameBtn) {
+            startGameBtn.addEventListener('click', () => {
+                const playerCount = parseInt(playerCountInput.value);
+                if (playerCount >= 1 && playerCount <= 10) {
+                    initGame(playerCount);
+                } else {
+                    alert("Por favor, escolha entre 1 a 10 jogadores.");
+                }
+            });
+        }
+
+
+        if (rollDiceBtn) rollDiceBtn.addEventListener('click', rollDice);
+        if (stayPutBtn) stayPutBtn.addEventListener('click', handleStayPut);
+        if (rerollDiceModalBtn) rerollDiceModalBtn.addEventListener('click', handleRerollDice);
+        if (correctBtn) correctBtn.addEventListener('click', () => handleAnswer(true));
+        if (wrongBtn) wrongBtn.addEventListener('click', () => handleAnswer(false));
+    </script>
+</body>
+</html>
