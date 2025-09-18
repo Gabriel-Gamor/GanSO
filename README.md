@@ -16,8 +16,7 @@
 
 **Gestão de Recursos:**
 - Cada casa/pilha gera consumo de CPU e RAM.  
-- Se o jogador atingir 100% em algum recurso, entra em estado de bloqueio (não joga até liberar).  
-- Os processos ocupam espaço por 2 rodadas (ou até 3, se o jogador optar por “guardar” um processo).  
+- Se o jogador atingir 100% em algum recurso, entra em estado de bloqueio.   
 - A cada 5 rodadas, recursos mais antigos são liberados automaticamente.  
 
 **Eventos Especiais:**
