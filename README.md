@@ -32,16 +32,22 @@ O jogador que chegar primeiro ao final do tabuleiro conclui a jornada como proce
 
 Jogadores Estratégicos:
 Preferem avançar de forma mais segura, escolhendo perguntas fáceis ou médias, focando em minimizar riscos, garantindo que sempre tenham CPU e RAM disponíveis.
+
 Jogadores Desafiadores:
 Preferem assumir riscos maiores, escolhendo perguntas difíceis para tentar avançar mais rápido, gostando de maior competitividade e buscando concluir os processos de forma ousada, mesmo correndo risco de bloqueio.
 
 5. Mecânicas e Conceitos de SO Representados
 
 Processos e Escalonamento: Turnos equivalem a ciclos de CPU; dado é o quantum; perguntas simulam execução bem-sucedida ou falha.
+
 Gerenciamento de Memória: Cada jogada consome CPU/RAM e os processos permanecem alocados por rodadas até serem liberados.
+
 Gerenciamento de Arquivos: Representado pelas pilhas de perguntas, com diferentes níveis de dificuldade.
+
 E/S (Entrada e Saída): Casas especiais podem simular operações de E/S, que bloqueiam temporariamente o processo.
+
 Interrupções: Voltar à casa anterior ou ficar bloqueado.
+
 Estado de Processos: Jogador pode estar em Execução, Bloqueado, ou Terminado.
 
 6. Estrutura de Recursos
